@@ -17,7 +17,7 @@
 |---|---|---|
 | 桌面直开 | 双击 `index.html` | file:// 下 Worker 自动走 Blob 路径,功能完整 |
 | 本地托管 | 任意静态服务器指向本目录 | `python -m http.server` 等 |
-| 手机 | 浏览器打开 `few_sim_single.html` | 已构建的单文件版,拷一个文件即用 |
+| 手机 | 浏览器打开 `few_sim_single.html` | 已构建的单文件版;或直接下载 [Releases](../../releases) 里的 zip(含高速引擎,双端通用,免克隆) |
 
 ## 升级加点机制(逆向结论)
 
