@@ -1,4 +1,4 @@
-# 火纹 Fortunes Weave 加点模拟器(网页版)
+# 火纹 Fortunes Weave 加点模拟器(网页离线版)
 
 《Fire Emblem: Fortunes Weave》升级加点机制的逆向复刻工具:录几级加点观测,反推出角色的乱数种子,进而确定预测此后每一级的加点,直到 99 级。
 
