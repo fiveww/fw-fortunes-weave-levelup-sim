@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>火纹 Fortunes Weave 加点模拟器</title>
+<style>
+  :root { --bg:#1e222a; --panel:#272c36; --line:#3a4150; --fg:#d8dde6; --dim:#8a93a5; --acc:#5b9bd5; --ok:#4caf78; --bad:#d55; --warn:#c9a55b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.5 "Segoe UI","Microsoft YaHei",sans-serif; }
+  header { display:flex; align-items:center; gap:16px; padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { font-size:17px; margin:0; }
+  #badge { margin-left:auto; padding:2px 10px; border-radius:10px; font-size:12px; }
+  #badge.ok { background:var(--ok); color:#fff; } #badge.bad { background:var(--bad); color:#fff; }
+  main { display:grid; grid-template-columns: 1fr; gap:10px; padding:10px; align-items:start; max-width:1100px; margin:0 auto; }
+  body { overflow-x: auto; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px; margin-bottom:10px; }
+  .panel h2 { font-size:13px; color:var(--dim); margin:2px 0 8px; font-weight:600; }
+  table { border-collapse:collapse; font-size:16px; width:100%; }
+  th, td { border:1px solid var(--line); padding:3px 6px; text-align:center; }
+  th { color:var(--dim); font-weight:500; }
+  #plan th, #plan td, #predTable th, #predTable td { white-space:nowrap; }   /* 表格不换行,过宽由容器横向滚动 */
+  #plan th, #predTable th { font-size:13px; }
+  input, select { background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:4px; padding:3px 6px; font-size:15px; }
+  input.n { width:56px; text-align:center; } input.no { width:42px; text-align:center; padding:2px 3px; font-size:13px; }
+  .row { display:flex; gap:8px; align-items:center; margin:6px 0; flex-wrap:wrap; }
+  .row label { color:var(--dim); font-size:12px; min-width:56px; }
+  .btn { background:var(--acc); color:#fff; border:none; border-radius:5px; padding:4px 12px; cursor:pointer; font-size:12px; }
+  .btn.sec { background:#3a4150; } .btn.mini { padding:1px 8px; } .btn:disabled { opacity:.4; cursor:default; }
+  #planWrap { overflow-x:auto; }
+  #plan td input.no.obs { border-color:var(--warn); }
+  .pred b { color:var(--acc); } .pred.u span { color:var(--dim); }
+  #progressBox { display:none; } #progBar { height:10px; background:var(--bg); border:1px solid var(--line); border-radius:5px; overflow:hidden; }
+  #progFill { height:100%; width:0%; background:var(--acc); }
+  .candline { font-size:12px; margin:4px 0; }
+  .note { font-size:12px; color:var(--dim); margin-top:6px; line-height:1.6; }
+  .warnbox { display:none; background:#3a3020; border:1px solid var(--warn); color:#e8d9b0; border-radius:6px; padding:6px 10px; font-size:12px; margin:6px 0; }
+  textarea { width:100%; height:90px; background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:4px; font:11px Consolas,monospace; }
+  .g9 { display:inline-grid; grid-template-columns:repeat(9,30px); gap:2px; justify-items:center; }
+  .g9 b { color:var(--acc); } .g9 .z { color:var(--dim); }
+  .g9h { display:grid; justify-content:center; font-size:12px; color:var(--dim); margin-top:2px; }   /* 块级+轨道居中:表拉伸后仍与下方格子逐列对齐 */
+  .g9h span { white-space:nowrap; }
+  .obBtn { min-width:30px; height:30px; padding:0; border:1px solid var(--line); border-radius:4px;
+           background:var(--bg); color:var(--dim); cursor:pointer; font-size:15px; line-height:1; }
+  .obBtn.on1 { background:var(--acc); color:#fff; border-color:var(--acc); }
+  .obBtn.on2 { background:var(--warn); color:#fff; border-color:var(--warn); }
+  .obRowBtn.active { background:var(--ok); }
+</style>
+</head>
+<body>
+<header>
+  <h1>火纹 Fortunes Weave 加点模拟器</h1>
+  <span style="color:var(--dim);font-size:12px">成长=人物+职业+坐骑(好感档) · 观测加点反推种子 · 升级/转职共用乱数链</span>
+  <span id="badge" style="display:none">自检中…</span>
+  <button class="btn sec mini" id="resetBtn" style="margin-left:auto">重置</button>
+</header>
+
+<main>
+  <!-- 左列:角色与预设 -->
+  <div>
+    <section class="panel">
+      <h2>角色</h2>
+      <div class="row"><label>人物</label><select id="personSel" style="flex:1"></select>
+        </div>
+      <div class="row"><label>职业</label><select id="charClsSel" style="flex:1"></select></div>
+      <div class="row"><label>坐骑</label><select id="charMntSel" style="flex:1"></select>
+        <label style="min-width:0">好感</label><select id="charBondSel" style="width:56px"></select></div>
+      <table id="charTable"></table>
+      <div class="row"><label>保底增加点数</label><input type="number" id="gcDefault" min="0" max="9" value="2" style="width:56px"><span style="color:var(--dim);font-size:11px">默认 2(未确证)</span></div>
+    </section>
+
+
+
+
+
+    <section class="panel">
+      <h2>高级</h2>
+      <div class="row"><label>已知种子</label><input type="text" id="knownSeed" placeholder="十进制或 0x(留空=观测过滤)" style="width:150px"><button class="btn mini" id="knownRun">直接模拟</button></div>
+      <div class="row">
+        <button class="btn mini" id="engineBtn">启用高速引擎(选择引擎文件)</button>
+        <button class="btn sec mini" id="engineOff" style="display:none">停用</button>
+        <span id="engineStat" style="font-size:11px;color:var(--dim)">未启用(浏览器 JS 计算)</span>
+        <input type="file" id="engineFile" accept=".wasm" style="display:none">
+      </div>
+      <div class="note">引擎文件 = few_engine.wasm(与网页同目录)。全平台通用:手机/电脑/iPhone 同一份文件;选择一次长期记忆。启用后扫描自动改走 WASM 高速引擎(8 线程不变)。</div>
+      <div class="row">
+        <button class="btn sec mini" id="predExport">导出预测表</button>
+        <button class="btn sec mini" id="predImport">导入预测表</button>
+        <input type="file" id="predFile" accept=".json" style="display:none">
+      </div>
+    </section>
+  </div>
+
+  <!-- 右列:等级计划 + 过滤 + 候选 -->
+  <div>
+    <section class="panel">
+      <h2>观测计划(每行一级)</h2>
+      <div class="row">
+        <input type="number" id="addN" value="1" min="1" max="99" style="width:52px"><button class="btn mini" id="addRows">+添加行</button>
+        <label style="min-width:0;color:var(--dim);font-size:12px">起始等级</label><input type="number" id="startLv" min="1" max="60" value="1" style="width:52px">
+        <button class="btn sec mini" id="clearObs">删除观测行</button>
+        <span style="color:var(--dim);font-size:11px">改某行升级时职业/坐骑 → 从该行起延续到最高等级;转职行填"升级前的转职跳过次数"(吃掉的种子,默认0);未记录的级点"观测"关闭(仍耗种子不约束过滤);加点观测:点击 0↔1,右键/Shift=+2;预测在下方"预测"区</span>
+      </div>
+      <div id="planWrap"><table id="plan"></table></div>
+    </section>
+
+    <section class="panel">
+      <h2>种子过滤</h2>
+      <div class="warnbox" id="warnBox"></div>
+      <div class="row">
+        <button class="btn" id="scanBtn">开始过滤(全扫描)</button>
+        <button class="btn" id="refilterBtn">用当前观测在候选内收窄</button>
+        <button class="btn sec mini" id="cancelBtn" style="display:none">取消</button>
+        <label style="min-width:0"><input type="checkbox" id="full32"> 含 32 位区(从未升过级的单位)</label>
+      </div>
+      <div id="progressBox"><div id="progBar"><div id="progFill"></div></div><div class="candline" id="progText"></div></div>
+      <div class="candline" id="candSummary"></div>
+      <div class="row" id="candPickRow" style="display:none"><label>候选</label><select id="candPick" style="max-width:220px"></select><span class="note" id="consensusNote" style="margin:0"></span></div>
+    </section>
+
+    <section class="panel">
+      <h2>预测(从观测最低等级列到 99 级;所有行可编辑——观测段默认同观测行,可任意改跳过/职业/坐骑做推演,配置按等级保留)</h2>
+      <div class="row"><span id="predHint" style="color:var(--dim);font-size:11px">先在上方"种子过滤"选候选(唯一候选自动选中),或用"高级"里已知种子</span></div>
+      <div id="predWrap" style="overflow-x:auto"><table id="predTable"></table></div>
+    </section>
+  </div>
+</main>
+
+<script src="core.js"></script>
+<script src="selftest.js"></script>
+<script src="worker.js"></script>
+<script src="presets.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

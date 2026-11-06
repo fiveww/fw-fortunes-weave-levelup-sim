@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>火纹 Fortunes Weave 加点模拟器</title>
+<style>
+  :root { --bg:#1e222a; --panel:#272c36; --line:#3a4150; --fg:#d8dde6; --dim:#8a93a5; --acc:#5b9bd5; --ok:#4caf78; --bad:#d55; --warn:#c9a55b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.5 "Segoe UI","Microsoft YaHei",sans-serif; }
+  header { display:flex; align-items:center; gap:16px; padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { font-size:17px; margin:0; }
+  #badge { margin-left:auto; padding:2px 10px; border-radius:10px; font-size:12px; }
+  #badge.ok { background:var(--ok); color:#fff; } #badge.bad { background:var(--bad); color:#fff; }
+  main { display:grid; grid-template-columns: 1fr; gap:10px; padding:10px; align-items:start; max-width:1100px; margin:0 auto; }
+  body { overflow-x: auto; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px; margin-bottom:10px; }
+  .panel h2 { font-size:13px; color:var(--dim); margin:2px 0 8px; font-weight:600; }
+  table { border-collapse:collapse; font-size:16px; width:100%; }
+  th, td { border:1px solid var(--line); padding:3px 6px; text-align:center; }
+  th { color:var(--dim); font-weight:500; }
+  #plan th, #plan td, #predTable th, #predTable td { white-space:nowrap; }   /* 表格不换行,过宽由容器横向滚动 */
+  #plan th, #predTable th { font-size:13px; }
+  input, select { background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:4px; padding:3px 6px; font-size:15px; }
+  input.n { width:56px; text-align:center; } input.no { width:42px; text-align:center; padding:2px 3px; font-size:13px; }
+  .row { display:flex; gap:8px; align-items:center; margin:6px 0; flex-wrap:wrap; }
+  .row label { color:var(--dim); font-size:12px; min-width:56px; }
+  .btn { background:var(--acc); color:#fff; border:none; border-radius:5px; padding:4px 12px; cursor:pointer; font-size:12px; }
+  .btn.sec { background:#3a4150; } .btn.mini { padding:1px 8px; } .btn:disabled { opacity:.4; cursor:default; }
+  #planWrap { overflow-x:auto; }
+  #plan td input.no.obs { border-color:var(--warn); }
+  .pred b { color:var(--acc); } .pred.u span { color:var(--dim); }
+  #progressBox { display:none; } #progBar { height:10px; background:var(--bg); border:1px solid var(--line); border-radius:5px; overflow:hidden; }
+  #progFill { height:100%; width:0%; background:var(--acc); }
+  .candline { font-size:12px; margin:4px 0; }
+  .note { font-size:12px; color:var(--dim); margin-top:6px; line-height:1.6; }
+  .warnbox { display:none; background:#3a3020; border:1px solid var(--warn); color:#e8d9b0; border-radius:6px; padding:6px 10px; font-size:12px; margin:6px 0; }
+  textarea { width:100%; height:90px; background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:4px; font:11px Consolas,monospace; }
+  .g9 { display:inline-grid; grid-template-columns:repeat(9,30px); gap:2px; justify-items:center; }
+  .g9 b { color:var(--acc); } .g9 .z { color:var(--dim); }
+  .g9h { display:grid; justify-content:center; font-size:12px; color:var(--dim); margin-top:2px; }   /* 块级+轨道居中:表拉伸后仍与下方格子逐列对齐 */
+  .g9h span { white-space:nowrap; }
+  .obBtn { min-width:30px; height:30px; padding:0; border:1px solid var(--line); border-radius:4px;
+           background:var(--bg); color:var(--dim); cursor:pointer; font-size:15px; line-height:1; }
+  .obBtn.on1 { background:var(--acc); color:#fff; border-color:var(--acc); }
+  .obBtn.on2 { background:var(--warn); color:#fff; border-color:var(--warn); }
+  .obRowBtn.active { background:var(--ok); }
+</style>
+</head>
+<body>
+<header>
+  <h1>火纹 Fortunes Weave 加点模拟器</h1>
+  <span style="color:var(--dim);font-size:12px">成长=人物+职业+坐骑(好感档) · 观测加点反推种子 · 升级/转职共用乱数链</span>
+  <span id="badge" style="display:none">自检中…</span>
+  <button class="btn sec mini" id="resetBtn" style="margin-left:auto">重置</button>
+</header>
+
+<main>
+  <!-- 左列:角色与预设 -->
+  <div>
+    <section class="panel">
+      <h2>角色</h2>
+      <div class="row"><label>人物</label><select id="personSel" style="flex:1"></select>
+        </div>
+      <div class="row"><label>职业</label><select id="charClsSel" style="flex:1"></select></div>
+      <div class="row"><label>坐骑</label><select id="charMntSel" style="flex:1"></select>
+        <label style="min-width:0">好感</label><select id="charBondSel" style="width:56px"></select></div>
+      <table id="charTable"></table>
+      <div class="row"><label>保底增加点数</label><input type="number" id="gcDefault" min="0" max="9" value="2" style="width:56px"><span style="color:var(--dim);font-size:11px">默认 2(未确证)</span></div>
+    </section>
+
+
+
+
+
+    <section class="panel">
+      <h2>高级</h2>
+      <div class="row"><label>已知种子</label><input type="text" id="knownSeed" placeholder="十进制或 0x(留空=观测过滤)" style="width:150px"><button class="btn mini" id="knownRun">直接模拟</button></div>
+      <div class="row">
+        <button class="btn mini" id="engineBtn">启用高速引擎(选择引擎文件)</button>
+        <button class="btn sec mini" id="engineOff" style="display:none">停用</button>
+        <span id="engineStat" style="font-size:11px;color:var(--dim)">未启用(浏览器 JS 计算)</span>
+        <input type="file" id="engineFile" accept=".wasm" style="display:none">
+      </div>
+      <div class="note">引擎文件 = few_engine.wasm(与网页同目录)。全平台通用:手机/电脑/iPhone 同一份文件;选择一次长期记忆。启用后扫描自动改走 WASM 高速引擎(8 线程不变)。</div>
+      <div class="row">
+        <button class="btn sec mini" id="predExport">导出预测表</button>
+        <button class="btn sec mini" id="predImport">导入预测表</button>
+        <input type="file" id="predFile" accept=".json" style="display:none">
+      </div>
+    </section>
+  </div>
+
+  <!-- 右列:等级计划 + 过滤 + 候选 -->
+  <div>
+    <section class="panel">
+      <h2>观测计划(每行一级)</h2>
+      <div class="row">
+        <input type="number" id="addN" value="1" min="1" max="99" style="width:52px"><button class="btn mini" id="addRows">+添加行</button>
+        <label style="min-width:0;color:var(--dim);font-size:12px">起始等级</label><input type="number" id="startLv" min="1" max="60" value="1" style="width:52px">
+        <button class="btn sec mini" id="clearObs">删除观测行</button>
+        <span style="color:var(--dim);font-size:11px">改某行升级时职业/坐骑 → 从该行起延续到最高等级;转职行填"升级前的转职跳过次数"(吃掉的种子,默认0);未记录的级点"观测"关闭(仍耗种子不约束过滤);加点观测:点击 0↔1,右键/Shift=+2;预测在下方"预测"区</span>
+      </div>
+      <div id="planWrap"><table id="plan"></table></div>
+    </section>
+
+    <section class="panel">
+      <h2>种子过滤</h2>
+      <div class="warnbox" id="warnBox"></div>
+      <div class="row">
+        <button class="btn" id="scanBtn">开始过滤(全扫描)</button>
+        <button class="btn" id="refilterBtn">用当前观测在候选内收窄</button>
+        <button class="btn sec mini" id="cancelBtn" style="display:none">取消</button>
+        <label style="min-width:0"><input type="checkbox" id="full32"> 含 32 位区(从未升过级的单位)</label>
+      </div>
+      <div id="progressBox"><div id="progBar"><div id="progFill"></div></div><div class="candline" id="progText"></div></div>
+      <div class="candline" id="candSummary"></div>
+      <div class="row" id="candPickRow" style="display:none"><label>候选</label><select id="candPick" style="max-width:220px"></select><span class="note" id="consensusNote" style="margin:0"></span></div>
+    </section>
+
+    <section class="panel">
+      <h2>预测(从观测最低等级列到 99 级;所有行可编辑——观测段默认同观测行,可任意改跳过/职业/坐骑做推演,配置按等级保留)</h2>
+      <div class="row"><span id="predHint" style="color:var(--dim);font-size:11px">先在上方"种子过滤"选候选(唯一候选自动选中),或用"高级"里已知种子</span></div>
+      <div id="predWrap" style="overflow-x:auto"><table id="predTable"></table></div>
+    </section>
+  </div>
+</main>
+
+<script>
+/* core.js — 火纹 Fortunes Weave 加点模拟核心(位精确移植)
+ * 来源:prng_work/levelup_sim.py(权威实现)/ LEVELUP_SPEC.md(规格)
+ * 移植陷阱已按 PLAN.md §4 处理:乘法一律 Math.imul,u32 边界一律 >>>0
+ * 环境:浏览器 file:// 直开(经典脚本,无模块依赖)与 Node require 通用
+ */
+(function (root, factory) {
+  var api = factory();
+  root.FECore = api;                       // 浏览器全局 / Node globalThis
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+  var MULT = 0x6C078965;                   // ★不是标准 MT 的 0x6C078865
+
+  // 属性序 = 引擎序(statId 0..8),由 Person.bin 指纹反证:技速/幸防序与 CSV 展示序不同
+  var STATS = ['生命', '力量', '魔力', '技巧', '速度', '幸运', '防御', '魔防', '魅力'];
+
+  function mtInit4(seed) {                // mt_init4 @0x8ce648
+    seed = seed >>> 0;
+    var x = (seed ^ (seed >>> 30)) >>> 0;
+    var s0 = Math.imul(x, MULT) >>> 0;
+    var s1 = (Math.imul(s0 ^ (s0 >>> 30), MULT) + 1) >>> 0;
+    var s2 = (Math.imul(s1 ^ (s1 >>> 30), MULT) + 2) >>> 0;
+    var s3 = (Math.imul(s2 ^ (s2 >>> 30), MULT) + 3) >>> 0;
+    return [s0, s1, s2, s3];
+  }
+
+  function Xor128(seed) {                 // xor128 @0x8ceaa0,31 位输出
+    this.s = mtInit4(seed >>> 0);
+    this.draws = 0;
+  }
+  Xor128.prototype.next = function () {
+    var s = this.s, s0 = s[0], s1 = s[1], s2 = s[2], s3 = s[3];
+    var t = (s0 ^ (s0 << 11)) >>> 0;
+    var nxt = (t ^ (t >>> 8) ^ s3 ^ (s3 >>> 19)) >>> 0;
+    s[0] = s1; s[1] = s2; s[2] = s3; s[3] = nxt;
+    this.draws++;
+    return nxt & 0x7FFFFFFF;
+  };
+
+  function advanceSeed(seed) {            // 0x6e2680 尾部,40/40 实测验证
+    seed = seed >>> 0;                     // ≡ 引擎第 1 个 RN 原始输出(自检 V5)
+    var x = (seed ^ (seed >>> 30)) >>> 0;
+    var s0 = Math.imul(x, MULT) >>> 0;
+    var s1 = (Math.imul(s0 ^ (s0 >>> 30), MULT) + 1) >>> 0;
+    var s2 = (Math.imul(s1 ^ (s1 >>> 30), MULT) + 2) >>> 0;
+    var s3 = (Math.imul(s2 ^ (s2 >>> 30), MULT) + 3) >>> 0;
+    var t = (Math.imul(x, 0x3C4B2800) ^ s0) >>> 0;
+    return (t ^ (t >>> 8) ^ s3 ^ (s3 >>> 19)) & 0x7FFFFFFF;
+  }
+
+  function appliedAfterClamp(gains, cur, cap) {   // 应用阶段逐点复查 cur<cap
+    var out = new Array(9);
+    for (var i = 0; i < 9; i++)
+      out[i] = gains[i] > 0 ? Math.min(gains[i], Math.max(0, cap[i] - cur[i])) : 0;
+    return out;
+  }
+
+  // 主引擎 levelup @0x8ce620(四阶段,细节见 LEVELUP_SPEC §4)
+  // trace:可选数组,收集审计日志(与 python 版同格式)
+  function levelup(seed, growths, cur, cap, gc, trace) {
+    var rng = new Xor128(seed);
+    var log = Array.isArray(trace)
+      ? function (m) { trace.push(m); } : function () {};
+
+    var L = [];                            // 阶段0:资格(g>=1 且 cur<cap,一次性)
+    for (var i = 0; i < 9; i++) {
+      var g = growths[i] | 0;
+      if (g < 1) continue;
+      if (!(cur[i] < cap[i])) { log('资格  stat' + i + ': 排除(当前 ' + cur[i] + ' >= 上限 ' + cap[i] + ')'); continue; }
+      L.push([i, g, 0]);                   // [statId, growth, gain]
+    }
+    var n = L.length;
+    var list = [];
+    for (var k = 0; k < n; k++) list.push('stat' + L[k][0] + '(g=' + L[k][1] + ')');
+    log('资格  入列 ' + n + ' 项: ' + list.join(', '));
+
+    var fillTarget = Math.min(gc, n);      // 阶段1:保底参数
+    var rerollTarget = Math.max(1, fillTarget);
+    log('保底  gc=' + gc + ' -> 重掷门槛=' + rerollTarget + ', 补足目标=' + fillTarget);
+
+    var rolls = 0, gains5;                 // 阶段2:掷点,最多 4 轮
+    while (true) {
+      for (k = 0; k < n; k++) L[k][2] = 0;
+      rolls++;
+      log('—— 第 ' + rolls + ' 轮掷点 ——');
+      for (k = 0; k < n; k++) {
+        var e = L[k], si = e[0], gg = e[1];
+        var base = (gg / 100) | 0, residual = gg % 100;   // g≥1,divmod 安全
+        if (residual === 0) {              // ★整百生长不耗 RN
+          e[2] = base;
+          log('  stat' + si + ': g=' + gg + ' → 保底+' + base + ',残差 0 不耗 RN');
+          continue;
+        }
+        var out = rng.next();
+        var rn = out % 1000000;
+        var hit = rn < residual * 10000;
+        e[2] = base + (hit ? 1 : 0);
+        log('  stat' + si + ': g=' + gg + '=' + base + '+' + residual + '%  RN#' +
+            rng.draws + '=' + out + '(mod1e6=' + rn + ') ' + (hit ? '<' : '>=') +
+            ' ' + residual * 10000 + ' → +' + e[2]);
+      }
+      var nz = 0;
+      for (k = 0; k < n; k++) if (L[k][2] > 0) nz++;
+      log('  本轮非零增益 ' + nz + ' 个');
+      if (nz >= rerollTarget || rolls >= 4) break;
+    }
+
+    var deficit = fillTarget - nz;         // 阶段3:加权补足(每缺 1 点抽 1 RN)
+    for (var d = 0; d < Math.max(0, deficit); d++) {
+      var cands = [];
+      for (k = 0; k < n; k++) if (L[k][2] === 0) cands.push(L[k]);
+      if (!cands.length) { log('补足  无零增益候选,空转(不耗 RN)'); break; }
+      var total = 0;
+      for (k = 0; k < cands.length; k++) total += cands[k][1] * 100;
+      var out2 = rng.next();
+      var rem = out2 % total;
+      var picked = null;
+      for (k = 0; k < cands.length; k++) {
+        rem -= cands[k][1] * 100;          // 走表:首个变负者中选(rem==0 不选)
+        if (rem < 0) { picked = cands[k]; break; }
+      }
+      picked[2] = 1;
+      log('补足  RN#' + rng.draws + '=' + out2 + ' % 总权重' + total +
+          ' → 选 stat' + picked[0] + '(权重' + picked[1] * 100 + ') 置 1');
+    }
+
+    var result = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+    for (k = 0; k < n; k++) result[L[k][0]] = L[k][2];
+    return {
+      gains: result,
+      applied: appliedAfterClamp(result, cur, cap),
+      draws: rng.draws,
+      rolls: rolls,
+      nextSeed: advanceSeed(seed >>> 0)
+    };
+  }
+
+  // 事件链(用户实测:升级与转职共用乱数链;转职只消耗一个种子、不加点)
+  // steps: [{t:'lv', growths,cur,cap,gc} | {t:'class'}]
+  // 'lv' 的 cur 等状态由调用方组装(应用层负责累加);核心只算单级
+  function simulateChain(startSeed, steps) {
+    var seed = startSeed >>> 0, results = [];
+    for (var idx = 0; idx < steps.length; idx++) {
+      var st = steps[idx];
+      if (st.t === 'class') {
+        var after = advanceSeed(seed);
+        results.push({ type: 'class', seedBefore: seed, seedAfter: after });
+        seed = after;
+      } else {
+        var r = levelup(seed, st.growths, st.cur, st.cap, st.gc);
+        results.push({ type: 'level', seedBefore: seed, seedAfter: r.nextSeed, r: r });
+        seed = r.nextSeed;
+      }
+    }
+    return results;
+  }
+
+  return {
+    STATS: STATS, MULT: MULT,
+    mtInit4: mtInit4, Xor128: Xor128, advanceSeed: advanceSeed,
+    levelup: levelup, appliedAfterClamp: appliedAfterClamp,
+    simulateChain: simulateChain
+  };
+});
+
+</script>
+<script>
+/* selftest.js — 黄金向量自检(V0-V6 + 转职链规则),浏览器与 Node 通用
+ * 向量来源:LEVELUP_SPEC.md §9(由反汇编移植的 python 参考实现生成)
+ */
+(function (root, factory) {
+  root.FESelftest = factory();
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  var V1_IN = {
+    growths: [120, 45, 35, 50, 55, 100, 25, 20, 0],
+    cur: [30, 12, 8, 14, 15, 10, 9, 6, 3],
+    cap: [60, 20, 20, 25, 24, 30, 20, 6, 10]
+  };
+  var V1_RN26 = [653244981, 655648930, 1303942347, 1246984643, 288771246, 358840146,
+    485799929, 1295534277, 1850224368, 1612651916, 1508717833, 1444683921,
+    2030873356, 1642543836, 1368530580, 1723708575, 2054502287, 580703175,
+    1673207742, 1755928090, 1001639375, 2146771861, 1149797690, 1714623031,
+    1129014923, 359927036];
+
+  function build(C) {                      // C = FECore
+    var T = [];
+    function chk(name, got, want) {
+      T.push({ name: name, pass: JSON.stringify(got) === JSON.stringify(want), got: got, want: want });
+    }
+
+    // V0 初始化
+    chk('V0 mtInit4(90)', C.mtInit4(90).map(function (v) { return v >>> 0; }),
+      [0xFAA64D82, 0x6D9D9CE6, 0x56778625, 0xEEED3037]);
+
+    // V1 全分支(seed=90, gc=4)
+    var r1 = C.levelup(90, V1_IN.growths, V1_IN.cur, V1_IN.cap, 4);
+    chk('V1 决定增益', r1.gains, [1, 0, 1, 1, 0, 1, 0, 0, 0]);
+    chk('V1 落地增益', r1.applied, [1, 0, 1, 1, 0, 1, 0, 0, 0]);
+    chk('V1 RN 总耗', r1.draws, 26);
+    chk('V1 新种子', r1.nextSeed, 653244981);
+    var rng = new C.Xor128(90), stream = [];
+    for (var i = 0; i < 26; i++) stream.push(rng.next());
+    chk('V1 RN 原始流(26)', stream, V1_RN26);
+
+    // V2 单轮即停(seed=1, gc=0)
+    var r2 = C.levelup(1, V1_IN.growths, V1_IN.cur, V1_IN.cap, 0);
+    chk('V2 决定增益', r2.gains, [1, 0, 0, 1, 0, 1, 0, 0, 0]);
+    chk('V2 RN 总耗', r2.draws, 6);
+    chk('V2 新种子', r2.nextSeed, 128212549);
+
+    // V3 全排除(seed=12345, gc=3, 生长全 0)
+    var r3 = C.levelup(12345, [0, 0, 0, 0, 0, 0, 0, 0, 0], V1_IN.cur, V1_IN.cap, 3);
+    chk('V3 全零增益', r3.gains, [0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    chk('V3 RN 总耗', r3.draws, 0);
+    chk('V3 新种子', r3.nextSeed, 859899650);
+
+    // V4 整百生长(seed=7, gc=0)
+    var r4 = C.levelup(7, [200, 250, 0, 0, 0, 0, 0, 0, 0], [5, 5, 0, 0, 0, 0, 0, 0, 0],
+      [20, 20, 1, 1, 1, 1, 1, 1, 1], 0);
+    chk('V4 决定增益', r4.gains, [2, 2, 0, 0, 0, 0, 0, 0, 0]);
+    chk('V4 RN 总耗', r4.draws, 1);
+    chk('V4 新种子(=RN#1 原始值)', r4.nextSeed, 1581665942);
+
+    // V5 advance ≡ 首个 RN 原始输出
+    var v5 = [[0, 1900725608], [1, 128212549], [90, 653244981], [987591, 1063390380],
+      [0x7FFFFFFF, 1507036647], [0xDEADBEEF, 676808145], [0x12345678, 2049119678]];
+    for (i = 0; i < v5.length; i++) {
+      var first = new C.Xor128(v5[i][0]).next();
+      chk('V5 s=' + v5[i][0] + ' advance==首RN', [C.advanceSeed(v5[i][0]), first],
+        [v5[i][1], v5[i][1]]);
+    }
+
+    // V6 连升三级(seed=90, gc=3,cur 逐级累加并截断)
+    var exp6 = [
+      [[1, 0, 1, 0, 0, 1, 0, 0, 0], 12, 653244981],
+      [[1, 0, 0, 0, 0, 1, 1, 0, 0], 6, 1254247836],
+      [[1, 1, 0, 0, 0, 1, 0, 0, 0], 6, 265885956]
+    ];
+    var cur6 = V1_IN.cur.slice(), s6 = 90;
+    for (i = 0; i < 3; i++) {
+      var r = C.levelup(s6, V1_IN.growths, cur6, V1_IN.cap, 3);
+      var ap = r.applied;
+      chk('V6 Lv' + (i + 1), [r.gains, ap, r.draws, r.nextSeed], [exp6[i][0], exp6[i][0], exp6[i][1], exp6[i][2]]);
+      s6 = r.nextSeed;
+      for (var j = 0; j < 9; j++) cur6[j] += ap[j];
+    }
+
+    // V9 转职消耗种子(用户实测规则):升1级→转职→再升1级,
+    // 第二级必须用 advance(advance(s)) 而非 advance(s)
+    var G = [80, 50, 40, 45, 55, 35, 30, 25, 15], CUR = [20, 10, 8, 12, 12, 9, 8, 6, 3],
+        CAP = [60, 25, 22, 28, 26, 30, 24, 20, 28];
+    var chain = C.simulateChain(90, [
+      { t: 'lv', growths: G, cur: CUR, cap: CAP, gc: 2 },
+      { t: 'class' },
+      { t: 'lv', growths: G, cur: CUR, cap: CAP, gc: 2 }
+    ]);
+    chk('V9 转职后种子=跳一级', chain[1].seedAfter, C.advanceSeed(C.advanceSeed(90)));
+    chk('V9 转职不加点', chain[1].type === 'class' && chain[1].r === undefined, true);
+    var direct = C.levelup(C.advanceSeed(C.advanceSeed(90)), G, CUR, CAP, 2);
+    chk('V9 第二级结果=直接以种子3模拟', chain[2].r.gains, direct.gains);
+
+    return T;
+  }
+
+  return { build: build, run: function (C) {
+    var T = build(C), pass = 0;
+    for (var i = 0; i < T.length; i++) if (T[i].pass) pass++;
+    return { tests: T, pass: pass, total: T.length };
+  } };
+});
+
+/* Node CLI:node selftest.js */
+if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module) {
+  var C = require('./core.js');
+  var r = module.exports.run(C);
+  for (var i = 0; i < r.tests.length; i++) {
+    var t = r.tests[i];
+    console.log((t.pass ? 'PASS' : 'FAIL') + '  ' + t.name +
+      (t.pass ? '' : '  got=' + JSON.stringify(t.got) + ' want=' + JSON.stringify(t.want)));
+  }
+  console.log('\n' + (r.pass === r.total ? '全部通过' : '存在失败!') +
+    ' ' + r.pass + '/' + r.total);
+  process.exit(r.pass === r.total ? 0 : 1);
+}
+
+</script>
+<script>
+/* worker.js — 种子过滤全扫描(专用早退匹配器)
+ * 语义必须与 core.levelup 完全一致(node cross_check.js 验证)
+ * 主线程预组每级输入;观测比较用决定增益(升级画面闪烁值)
+ */
+(function boot(root, factory) {
+  var api = factory();
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;   // Node 交叉验证用
+  root.FEWorkerMatch = api;
+  // 页面环境:自序列化完整源码(boot+factory 的 toString 拼接),供 file:// 下构造 Blob Worker
+  // (file:// 禁 new Worker('worker.js'),也读不到外链脚本文本;函数自序列化全浏览器通用)
+  if (typeof document !== 'undefined' && root === (typeof window !== 'undefined' ? window : root))
+    root.__WORKER_SRC = '(' + boot.toString() + ')(self,' + factory.toString() + ');';
+  if (typeof self !== 'undefined' && typeof self.onmessage !== 'undefined' &&
+      typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope) {
+    self.onmessage = function (e) {
+      var msg = e.data;
+      if (msg.cmd === 'scan') api.scanInWorker(msg, self);
+    };
+  }
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+  var MULT = 0x6C078965;
+
+  function advanceSeed(seed) {
+    seed = seed >>> 0;
+    var x = (seed ^ (seed >>> 30)) >>> 0;
+    var s0 = Math.imul(x, MULT) >>> 0;
+    var s1 = (Math.imul(s0 ^ (s0 >>> 30), MULT) + 1) >>> 0;
+    var s2 = (Math.imul(s1 ^ (s1 >>> 30), MULT) + 2) >>> 0;
+    var s3 = (Math.imul(s2 ^ (s2 >>> 30), MULT) + 3) >>> 0;
+    var t = (Math.imul(x, 0x3C4B2800) ^ s0) >>> 0;
+    return (t ^ (t >>> 8) ^ s3 ^ (s3 >>> 19)) & 0x7FFFFFFF;
+  }
+
+  // 单级决定增益(与 core.levelup 相同的四阶段)
+  // lv: {g9:9 成长, gc, cap9} —— 资格按链上 cur 现算(各候选 cur 历史不同!)
+  // cur: Int32Array 9(资格判定 + 落地截断);gains9: 输出(复用)
+  function simLevel(seed, lv, cur, gains9) {
+    var st0, st1, st2, st3, t, nxt;
+    seed = seed >>> 0;                                  // mt_init4
+    var x = (seed ^ (seed >>> 30)) >>> 0;
+    st0 = Math.imul(x, MULT) >>> 0;
+    st1 = (Math.imul(st0 ^ (st0 >>> 30), MULT) + 1) >>> 0;
+    st2 = (Math.imul(st1 ^ (st1 >>> 30), MULT) + 2) >>> 0;
+    st3 = (Math.imul(st2 ^ (st2 >>> 30), MULT) + 3) >>> 0;
+
+    var g9 = lv.g9, cap9 = lv.cap9, gc = lv.gc;
+    var stats = lv._stats || (lv._stats = new Int32Array(9));
+    var gain = lv._gain || (lv._gain = new Int32Array(9));
+    var n = 0;                                          // 资格:g>=1 且 cur<cap
+    for (var i = 0; i < 9; i++) {
+      if (g9[i] >= 1 && cur[i] < cap9[i]) { stats[n] = i; n++; }
+    }
+    var rerollT = Math.max(1, Math.min(gc, n)), fillT = Math.min(gc, n);
+    var rolls = 0, nz = 0;
+    for (var p = 0; p < 4; p++) {                       // 阶段2:掷点 ≤4 轮
+      nz = 0;
+      for (var k = 0; k < n; k++) {
+        var g = g9[stats[k]];
+        var base = (g / 100) | 0, res = g % 100, gv;
+        if (res === 0) gv = base;                        // 整百不耗 RN
+        else {
+          t = (st0 ^ (st0 << 11)) >>> 0;                 // xor128 步进
+          nxt = (t ^ (t >>> 8) ^ st3 ^ (st3 >>> 19)) >>> 0;
+          st0 = st1; st1 = st2; st2 = st3; st3 = nxt;
+          gv = base + ((((nxt & 0x7FFFFFFF) % 1000000) < res * 10000) ? 1 : 0);
+        }
+        gain[stats[k]] = gv;
+        if (gv > 0) nz++;
+      }
+      rolls++;
+      if (nz >= rerollT || rolls >= 4) break;
+    }
+    var deficit = fillT - nz;                           // 阶段3:加权补足
+    for (var d = 0; d < deficit; d++) {
+      var total = 0;
+      for (k = 0; k < n; k++) { var kk = stats[k]; if (gain[kk] === 0) total += g9[kk] * 100; }
+      if (total === 0) break;
+      t = (st0 ^ (st0 << 11)) >>> 0;
+      nxt = (t ^ (t >>> 8) ^ st3 ^ (st3 >>> 19)) >>> 0;
+      st0 = st1; st1 = st2; st2 = st3; st3 = nxt;
+      var rem = (nxt & 0x7FFFFFFF) % total;
+      for (k = 0; k < n; k++) {
+        kk = stats[k];
+        if (gain[kk] !== 0) continue;
+        rem -= g9[kk] * 100;
+        if (rem < 0) { gain[kk] = 1; break; }
+      }
+    }
+    for (k = 0; k < 9; k++) gains9[k] = 0;
+    for (k = 0; k < n; k++) gains9[stats[k]] = gain[stats[k]];
+  }
+
+  // 判定一个种子在给定计划下是否吻合所有观测;返回是否匹配(早退)
+  // levels: [lv...](含 skip);observed: [null | Int 数组9];cur0
+  function matchSeed(seed, levels, observed, cur0, gains9, cur) {
+    for (var j = 0; j < 9; j++) cur[j] = cur0[j];
+    for (var i = 0; i < levels.length; i++) {
+      var lv = levels[i];
+      for (var s = 0; s < lv.skip; s++) seed = advanceSeed(seed);
+      simLevel(seed, lv, cur, gains9);
+      var ob = observed[i];
+      if (ob) {
+        for (j = 0; j < 9; j++) if (gains9[j] !== ob[j]) return false;   // 决定增益比较
+      }
+      var cap9 = lv.cap9;
+      for (j = 0; j < 9; j++) {                        // 落地截断后推进 cur
+        var add = gains9[j] > 0 ? Math.min(gains9[j], Math.max(0, cap9[j] - cur[j])) : 0;
+        cur[j] += add;
+      }
+      seed = advanceSeed(seed);
+    }
+    return true;
+  }
+
+  // Worker 扫描:msg = {cmd:'scan', levels, observed, cur0, from, to, cap, stopOnFirst, wasm?}
+  function scanInWorker(msg, ctx) {
+    if (msg.wasm) return scanWasm(msg, ctx);             // 通用高速引擎(.wasm,每个 worker 独立实例)
+    var levels = msg.levels, observed = msg.observed, cur0 = msg.cur0;
+    var from = msg.from >>> 0, to = msg.to >>> 0, cap = msg.cap || 200000;
+    var gains9 = new Int32Array(9), cur = new Int32Array(9);
+    var matches = new Uint32Array(cap), m = 0;
+    var stop1 = !!msg.stopOnFirst;                       // 观测≥5:命中 1 个即停(主线程会杀掉其余 worker)
+    var t0 = Date.now(), lastPost = t0;
+    for (var s = from; s <= to; s++) {
+      if (matchSeed(s, levels, observed, cur0, gains9, cur)) {
+        if (m < cap) matches[m++] = s;
+        else { ctx.postMessage({ type: 'overflow' }); break; }
+        if (stop1 && m >= 1) break;                      // 首中即停:立即上报 done
+      }
+      if ((s & 0xFFFFF) === 0) {                       // 每 1M 查一次时间(多级计划吞吐低,不能等 16M 才报)
+        var now = Date.now();
+        if (now - lastPost > 200) {
+          lastPost = now;
+          ctx.postMessage({ type: 'progress', done: s - from, total: to - from + 1, matches: m });
+        }
+      }
+    }
+    var out = matches.subarray(0, m);
+    // 注意发视图 out(长度=命中数)而非 out.buffer:buffer 是整个 cap 上限缓冲区,
+    // 主线程若按 buffer 解析会收到几十万个 0 再 push.apply 炸调用栈
+    ctx.postMessage({ type: 'done', done: to - from + 1, matches: m,
+      seeds: out, truncated: m >= cap }, [out.buffer]);
+  }
+
+  // WASM 引擎路径:cfg 布局 = few_engine_wasm.c 的 ABI;分块调用以保持进度/首中即停
+  function scanWasm(msg, ctx) {
+    WebAssembly.instantiate(msg.wasm, {}).then(function (res) {
+      var mod = res.instance.exports;
+      var cfg = new Int32Array(mod.memory.buffer, mod.cfg_addr(), 1 + 256 * 30);
+      var out = new Uint32Array(mod.memory.buffer, mod.out_addr(), 200001);
+      cfg[0] = msg.levels.length;
+      msg.levels.forEach(function (l, i) {
+        var b = 1 + i * 30, k;
+        for (k = 0; k < 9; k++) { cfg[b + k] = l.g9[k] | 0; cfg[b + 9 + k] = l.cap9[k] | 0; }
+        cfg[b + 18] = l.gc | 0; cfg[b + 19] = l.skip | 0;
+        var ob = msg.observed[i];
+        cfg[b + 20] = ob ? 1 : 0;
+        if (ob) for (k = 0; k < 9; k++) cfg[b + 21 + k] = ob[k] | 0;
+      });
+      var from = msg.from >>> 0, to = msg.to >>> 0, cap = msg.cap || 200000, stop1 = !!msg.stopOnFirst;
+      var matches = new Uint32Array(cap), m = 0, lastPost = Date.now(), CH = 1 << 22;
+      for (var s = from; s <= to; ) {
+        var end = (s + CH - 1) > to ? to : (s + CH - 1);
+        var n = mod.scan(s, end, stop1 ? 1 : 0) | 0;
+        for (var q = 0; q < n && m < cap; q++) matches[m++] = out[q];
+        if (n > 0 && (stop1 || n >= 200000)) { if (n >= 200000) ctx.postMessage({ type: 'overflow' }); break; }
+        s = end + 1;
+        var now = Date.now();
+        if (now - lastPost > 200) {
+          lastPost = now;
+          ctx.postMessage({ type: 'progress', done: s - from, total: to - from + 1, matches: m });
+        }
+      }
+      var o = matches.subarray(0, m);
+      ctx.postMessage({ type: 'done', done: to - from + 1, matches: m,
+        seeds: o, truncated: m >= cap }, [matches.buffer]);
+    }).catch(function () { ctx.postMessage({ type: 'overflow' }); });   // 引擎异常:按候选不全警示
+  }
+
+  return { advanceSeed: advanceSeed, simLevel: simLevel, matchSeed: matchSeed, scanInWorker: scanInWorker };
+});
+
+</script>
+<script>
+// 自动生成(gen_presets.py):职业/坐骑完全以 CSV 为准(03/14);人物=Person.bin 提取
+// 引擎属性序:生命/力量/魔力/技巧/速度/幸运/防御/魔防/魅力;坐骑数值=满好感(LV5),LV1-4 待录
+window.FE_PRESETS = {"classes":[{"id":"c0","name":"平民","growths":[0,0,0,0,0,0,0,0,0],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c1","name":"贵族","growths":[0,0,0,0,0,0,0,0,0],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c2","name":"斗士","growths":[10,10,0,0,0,0,0,0,0],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c3","name":"猎兵","growths":[10,0,0,10,10,0,0,0,0],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c4","name":"士兵","growths":[10,5,0,5,-5,0,10,0,0],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c5","name":"飞鸵兵","growths":[10,0,0,0,10,5,0,5,0],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c6","name":"诅咒师","growths":[5,-5,15,5,0,0,-5,10,0],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c7","name":"剑客","growths":[10,0,0,10,15,5,0,0,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c8","name":"土匪","growths":[15,15,-5,0,5,0,5,0,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c9","name":"斗拳手","growths":[15,10,-5,5,10,0,10,0,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c10","name":"弓箭手","growths":[10,0,0,15,10,5,5,0,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c11","name":"恶棍","growths":[10,0,0,10,15,5,0,5,0],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c12","name":"重装步兵","growths":[10,10,-5,5,-5,0,25,-5,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c13","name":"轻骑兵","growths":[10,5,-5,0,5,5,5,0,10],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c14","name":"战车兵(坐骑×2)","growths":[10,5,-5,15,-5,5,10,0,10],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":true},{"id":"c15","name":"骑甲驼兵","growths":[10,0,-5,5,10,5,10,0,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c16","name":"天翼兵","growths":[10,0,5,5,0,5,5,5,10],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c17","name":"萨满巫师","growths":[5,-5,15,10,10,10,-10,10,0],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c18","name":"牧师","growths":[5,-5,10,5,5,15,-10,15,10],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c19","name":"侍道","growths":[10,5,0,10,15,5,0,-5,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c20","name":"舞者","growths":[15,5,0,10,25,10,0,5,20],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c21","name":"勇士","growths":[20,20,-5,0,0,0,5,-5,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c22","name":"锻造师","growths":[15,10,10,5,0,0,10,10,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c23","name":"狙击手","growths":[10,5,0,20,10,5,5,5,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c24","name":"森林骑士","growths":[10,5,0,10,10,5,5,5,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c25","name":"游侠","growths":[10,5,0,15,15,15,0,10,0],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c26","name":"卫士","growths":[10,10,0,5,0,5,10,15,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c27","name":"巨型重甲兵","growths":[15,15,-5,5,-10,0,30,-10,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c28","name":"荣光骑士","growths":[10,10,-5,0,0,5,5,10,10],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c29","name":"战车兵2(坐骑×2)","growths":[20,10,0,20,0,5,20,0,15],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":true},{"id":"c30","name":"神鸵兵","growths":[15,0,10,5,10,5,10,10,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c31","name":"铁甲骑兵","growths":[15,15,-5,0,-10,0,10,-5,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c32","name":"驭龙兵","growths":[15,5,0,0,5,10,10,10,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c33","name":"先知","growths":[10,-5,20,15,5,10,-10,15,0],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c34","name":"主教","growths":[10,-5,15,5,0,20,-10,20,10],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c35","name":"游唱诗人","growths":[10,0,15,5,0,15,5,15,10],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c36","name":"战象兵","growths":[20,10,-5,20,-10,5,15,-5,10],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c37","name":"刀剑将领","growths":[15,10,0,15,20,5,0,0,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c38","name":"高阶墓志铭","growths":[10,15,15,5,10,5,5,5,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c39","name":"战斗将领","growths":[25,25,-5,-5,5,-5,10,-5,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c40","name":"武僧","growths":[15,10,0,0,15,5,5,15,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c41","name":"宗师射手","growths":[15,5,0,20,15,5,5,5,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c42","name":"弓骑士","growths":[10,10,0,10,15,5,5,0,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c43","name":"探影者","growths":[15,5,0,15,25,15,0,10,0],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c44","name":"圣枪师","growths":[15,15,0,5,5,5,10,15,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c45","name":"要塞","growths":[25,20,-5,5,-15,0,30,-10,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c46","name":"奥利哈铁骑","growths":[15,15,-5,0,5,5,5,5,10],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c47","name":"英勇骑士","growths":[20,20,-5,0,-10,0,15,-10,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c48","name":"战车兵3(坐骑×2)","growths":[20,20,0,25,0,10,30,5,20],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":true},{"id":"c49","name":"圣天翼兵","growths":[15,5,-5,5,10,15,5,15,10],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c50","name":"飞龙将领","growths":[15,5,0,0,5,10,10,10,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c51","name":"战象兵2","growths":[30,20,-5,30,-10,5,25,5,10],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c52","name":"德鲁伊","growths":[10,-5,30,15,10,10,-10,20,0],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c53","name":"贤士","growths":[10,-5,20,0,5,20,-10,25,10],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c54","name":"瓦尔基里姆","growths":[10,0,15,5,5,15,5,10,10],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c55","name":"刃辉神将","growths":[15,10,10,20,20,5,5,5,10],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c56","name":"神乐神将","growths":[15,5,10,15,25,10,5,5,30],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c57","name":"永霸神将","growths":[30,30,0,0,10,0,15,0,10],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c58","name":"破拳神将","growths":[15,10,10,5,15,5,10,15,10],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c59","name":"绝祸神将","growths":[15,5,15,20,25,15,5,15,5],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c60","name":"岚枪神将","growths":[15,15,5,10,10,5,15,15,10],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c61","name":"烈骏神将","growths":[20,15,5,10,10,5,15,10,15],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false},{"id":"c62","name":"圣转神将","growths":[10,-5,30,5,10,20,-5,30,10],"caps":[99,99,99,99,99,99,99,99,99],"gc":0,"mountX2":false}],"persons":[{"id":"p0","name":"伊修玛尔","growths":[50,45,45,45,45,40,35,35,50]},{"id":"p1","name":"红花","growths":[40,30,45,45,45,30,30,45,40]},{"id":"p2","name":"特洛伊亚","growths":[40,45,45,40,50,30,30,30,30]},{"id":"p3","name":"凯伊","growths":[45,45,40,45,45,40,35,35,40]},{"id":"p4","name":"媞雅拉","growths":[30,25,45,40,35,50,20,40,45]},{"id":"p5","name":"皮特鲁","growths":[40,35,20,60,45,35,30,25,30]},{"id":"p6","name":"乌尔坦德","growths":[45,40,40,40,35,55,35,45,50]},{"id":"p7","name":"迪托利希","growths":[50,45,30,60,50,50,40,30,60]},{"id":"p8","name":"法毕欧","growths":[40,25,50,40,35,35,30,45,30]},{"id":"p9","name":"艾丝梅拉尔达","growths":[55,55,20,35,35,35,45,25,30]},{"id":"p10","name":"米迦艾拉","growths":[50,45,30,35,40,30,40,25,40]},{"id":"p11","name":"赛奥朵拉","growths":[70,50,30,40,40,30,40,30,50]},{"id":"p12","name":"波拿帕尔特","growths":[35,35,45,50,40,35,30,40,40]},{"id":"p13","name":"托比亚斯","growths":[55,60,15,30,25,40,45,20,35]},{"id":"p14","name":"莉利安","growths":[35,35,30,55,40,50,30,35,25]},{"id":"p15","name":"莱桑达","growths":[45,40,25,35,50,30,40,25,30]},{"id":"p16","name":"蕾达","growths":[40,35,35,50,65,25,30,35,55]},{"id":"p17","name":"巴卡尼亚","growths":[50,50,20,40,25,30,45,20,35]},{"id":"p18","name":"西洛可","growths":[40,40,40,50,45,50,35,35,45]},{"id":"p19","name":"穆","growths":[50,50,25,50,50,30,40,30,40]},{"id":"p20","name":"奥琳琵娅","growths":[35,35,50,35,35,40,30,40,40]},{"id":"p21","name":"贝特兰","growths":[50,55,15,50,45,30,45,20,50]},{"id":"p22","name":"盖茨","growths":[50,50,20,45,40,40,45,25,45]},{"id":"p23","name":"哥莱亚斯","growths":[55,60,5,30,15,35,50,20,20]},{"id":"p24","name":"杰斯塔","growths":[40,35,15,45,60,40,35,25,40]},{"id":"p25","name":"丹提","growths":[30,30,45,40,40,45,20,40,30]},{"id":"p26","name":"欧露赫露","growths":[30,60,45,20,10,20,60,60,60]},{"id":"p27","name":"迪雅各","growths":[45,40,20,60,45,35,35,20,30]},{"id":"p28","name":"罗蕾塔","growths":[35,35,35,40,55,30,30,40,30]},{"id":"p29","name":"西提司","growths":[45,45,30,45,40,30,40,35,50]},{"id":"p30","name":"妮涅","growths":[45,45,35,45,35,50,35,45,40]},{"id":"p31","name":"谭利穆恩","growths":[45,40,45,45,40,60,35,40,50]},{"id":"p32","name":"乌修拉","growths":[40,35,35,50,50,40,35,30,45]},{"id":"p33","name":"希蒙","growths":[50,50,20,40,35,50,40,25,35]},{"id":"p34","name":"露露蒂雅","growths":[40,35,20,45,55,30,30,20,30]},{"id":"p35","name":"绯亚娜","growths":[30,35,55,40,30,25,20,45,40]},{"id":"p36","name":"爱娜特莉亚","growths":[40,35,50,45,50,40,35,40,50]},{"id":"p37","name":"沙兰","growths":[35,30,45,50,35,35,30,45,40]},{"id":"p38","name":"哪吒","growths":[45,45,25,50,45,30,35,25,25]},{"id":"p39","name":"大刀","growths":[50,55,20,35,30,25,45,20,30]},{"id":"p40","name":"哈尔温","growths":[35,35,30,60,45,40,30,25,35]},{"id":"p41","name":"卡塔妮雅","growths":[35,35,35,50,55,40,30,35,45]},{"id":"p42","name":"努蒂奴","growths":[45,40,30,40,45,35,30,25,35]},{"id":"p43","name":"伊欧","growths":[45,40,25,45,35,35,40,25,35]},{"id":"p44","name":"古扎岚","growths":[45,45,20,45,50,45,35,20,30]},{"id":"p45","name":"杨界","growths":[50,35,40,35,35,40,30,40,25]},{"id":"p46","name":"马吉迪","growths":[65,50,15,30,20,25,40,10,5]},{"id":"p47","name":"诺克裘拉","growths":[50,45,20,40,45,35,40,20,30]},{"id":"p48","name":"努佐","growths":[50,50,15,45,55,25,20,15,35]},{"id":"p49","name":"索绯雅","growths":[35,30,45,40,30,30,25,40,40]},{"id":"p50","name":"佩佩","growths":[30,30,25,45,60,45,30,30,30]},{"id":"p51","name":"札可捏","growths":[40,30,20,60,35,30,30,25,15]},{"id":"p52","name":"班迪兹","growths":[50,35,20,50,35,30,35,25,35]},{"id":"p53","name":"亚历珊德拉","growths":[30,35,35,45,55,50,30,40,50]},{"id":"p54","name":"奇洛伊卡","growths":[55,40,15,50,55,30,30,15,25]},{"id":"p55","name":"嘉丝敏","growths":[50,40,20,45,30,40,45,25,45]},{"id":"p56","name":"易尼奥尼","growths":[40,50,20,40,35,40,40,30,30]},{"id":"p57","name":"齐利科","growths":[45,50,15,50,60,30,35,20,35]},{"id":"p58","name":"内森","growths":[55,60,15,60,25,25,45,15,30]},{"id":"p59","name":"盛托利翁","growths":[45,45,25,50,40,30,50,30,30]},{"id":"p60","name":"亚丝望","growths":[40,35,10,50,40,30,30,15,20]},{"id":"p61","name":"塔霍尼雅","growths":[65,50,5,40,20,20,45,35,40]},{"id":"p62","name":"库拉普卡","growths":[40,40,10,45,25,25,50,15,35]}],"mounts":[{"id":"m0","name":"野生马","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[5,0,0,5,5,0,5,5,0]]},{"id":"m1","name":"汗血马","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[5,5,0,5,0,0,10,0,0]]},{"id":"m2","name":"黑马","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[5,5,0,5,10,0,0,0,0]]},{"id":"m3","name":"莫诺凯洛斯","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[5,0,0,5,5,0,0,10,0]]},{"id":"m4","name":"罗西南","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[5,0,0,5,5,0,10,5,0]]},{"id":"m5","name":"野生欧鲁尼乌斯","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,15,10,0,0,0,0]]},{"id":"m6","name":"白羽欧鲁尼乌斯","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,5,5,0,0,15,0]]},{"id":"m7","name":"美加尼乌斯","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,5,0,5,0,0,15,0,0]]},{"id":"m8","name":"玛吉尼乌斯","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,15,10,0,0,0,0,0]]},{"id":"m9","name":"红羽美加尼乌斯","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,15,0,5,0,0,5,0,0]]},{"id":"m10","name":"黑羽玛吉尼乌斯","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,10,5,10,0,0,0,0]]},{"id":"m11","name":"野生飞马","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,15,0,0,10,0]]},{"id":"m12","name":"圣飞马","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,5,0,5,15,0,0,0,0]]},{"id":"m13","name":"暗飞马","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,15,0,10,0,0,0,0]]},{"id":"m14","name":"红圣飞马","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,10,0,5,10,0,0,0,0]]},{"id":"m15","name":"布克发拉斯","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,5,0,0,15,0,0,10,0]]},{"id":"m16","name":"野生巴乌","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,10,0,10,5,0,0,0,0]]},{"id":"m17","name":"红巴乌","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,15,0,10,0,0,0,0,0]]},{"id":"m18","name":"黑巴乌","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,10,0,0,15,0,0,0,0]]},{"id":"m19","name":"萨拉弥斯战象","levels":[[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],[5,5,0,5,0,5,5,0,0]]}]};
+
+</script>
+<script>
+/* app.js v2 — 观测反推种子工作流
+ * 核心:FECore(权威算法)/ FEWorkerMatch(扫描匹配器,cross_check 验证与 core 位一致)
+ * 多线程三层策略(全平台):①http(s) 直连 worker.js(手机/托管必走)②file:// 直开用
+ * Blob Worker(worker.js 页面环境下经 document.currentScript 捕获自身源码)③无 Worker 的
+ * 老浏览器回退主线程分片扫描
+ */
+(function () {
+  'use strict';
+  var C = window.FECore, M = window.FEWorkerMatch, STATS = C.STATS;
+  // 显示序(用户约定):生命/力量/魔力/速度/技巧/防御/魔防/幸运/魅力
+  // DISP[i] = 第 i 个显示位对应的引擎 statId;内部数组一律引擎序,仅渲染时换序
+  var DISP = [0, 1, 2, 4, 3, 6, 7, 5, 8];
+  var ZERO9 = [0, 0, 0, 0, 0, 0, 0, 0, 0];            // 基础当前值(当前值行已移除,种子链从 0 起算)
+  var LS = 'few_sim_v11';              // v11:角色卡五行人选/职选/骑选合并;旧存档弃用
+  var el = function (id) { return document.getElementById(id); };
+  // 属性名条(显示序):与加点观测按钮/预测数字同 g9 网格几何,逐列对齐;同用 DISP,不会错位
+  var HEAD9 = '<div class="g9 g9h">' + DISP.map(function (e) { return '<span>' + STATS[e] + '</span>'; }).join('') + '</div>';
+
+  // ---------- 状态 ----------
+  function defaults() {
+    var P = typeof window !== 'undefined' && window.FE_PRESETS;   // 自动生成的预设(presets.js)
+    return {
+      personal: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+      gcDefault: 2,
+      startLv: 1,                          // 起始等级:计划表第 1 行 = startLv → startLv+1
+      personId: '',                        // 选中的人物(进页面回显并载入)
+      predRows: [],                        // 预测区行(独立于观测行;沿用行结构 cls/mount/bond/skip/lv)
+      predMig: false,                      // 旧存档"尾部未观测行→预测区"一次性迁移标记
+      bond5mig: false,                     // 好感默认 5 迁移标记(存档带回,防止反复改)
+      classes: P ? JSON.parse(JSON.stringify(P.classes))
+        : [{ id: 'c0', name: '示例职业', growths: [45, 35, 25, 40, 40, 30, 25, 20, 0], caps: [60, 25, 22, 28, 26, 30, 24, 20, 20], gc: 0 }],
+      persons: P ? JSON.parse(JSON.stringify(P.persons)) : [],
+      mounts: P && P.mounts ? JSON.parse(JSON.stringify(P.mounts)) : [],
+      rows: [],
+      candidates: null            // null=未过滤;[] 空匹配;[...] 候选
+    };
+  }
+  var S = defaults(), hadSave = false;
+  try {
+    var saved = JSON.parse(localStorage.getItem(LS) || 'null');
+    if (saved) {
+      hadSave = true;
+      // 预设(职业/坐骑/人物)始终以 presets.js 为准,存档只带回运行状态
+      // (adj/startCur 手调已随"当前值行/最终成长率可编辑"一并移除,旧存档里的这些字段直接忽略)
+      ['personal', 'gcDefault', 'startLv', 'personId', 'bond5mig', 'predMig', 'rows', 'predRows', 'candidates'].forEach(function (k) {
+        if (saved[k] !== undefined) S[k] = saved[k];
+      });
+    }
+  } catch (e) { /* 存档损坏 → 全新状态 */ }
+  if (!S.classes.length) S.classes = defaults().classes;
+  if (!S.rows.length) S.rows = [newRow()];               // 默认 1 行,按需添加
+  if (!S.bond5mig) {                                     // 一次性迁移:旧默认好感 1 → 新默认 5
+    S.rows.forEach(function (r) { if ((r.bond | 0) === 1) r.bond = 5; });
+    S.bond5mig = true; save();
+  }
+  S.rows.forEach(function (r, i) { if (r.lv == null) r.lv = Math.max(1, S.startLv | 0) + i; });  // 旧存档行补等级记录
+  if (!S.predMig) {                                     // 一次性:旧版把预测行放计划表末尾(obs=null),迁到独立预测区
+    var kEnd = S.rows.length;
+    while (kEnd > 1 && !S.rows[kEnd - 1].obs) kEnd--;   // 尾部连续未观测行(观测区至少留 1 行)
+    var moved = S.rows.slice(kEnd).map(function (r) {
+      return { skip: r.skip | 0, cls: r.cls, mount: r.mount, bond: r.bond, lv: r.lv | 0 };
+    });
+    S.predRows = moved.concat(S.predRows || []);
+    S.rows = S.rows.slice(0, kEnd);
+    S.predMig = true; save();
+  }
+  if (!S.predRows) S.predRows = [];
+  syncPredRows();                                       // 预测区 = 观测段镜像 + 未来段到 98→99 级
+  function save() {
+    try {                                                   // 个别环境 localStorage 只读/禁用(隐私模式等)
+      var keep = Object.assign({}, S);
+      if (!keep.candidates || keep.candidates.length > 5000) delete keep.candidates;   // 候选 ≤5000 长期保存(C 导入/首中即停结果)
+      localStorage.setItem(LS, JSON.stringify(keep));
+    } catch (e) { /* 存不了就只留内存态 */ }
+  }
+  function newRow() { return { skip: 0, cls: 'c0', mount: 'none', bond: 5, lv: Math.max(1, S.startLv | 0), obs: [0, 0, 0, 0, 0, 0, 0, 0, 0] }; }  // 观测默认启用(全0);好感默认 5;等级=起始等级(可改,显示 X级→X+1级)
+  function lastObsLv() { var r = S.rows[S.rows.length - 1]; return r ? (r.lv | 0) : Math.max(1, S.startLv | 0); }
+  function syncPredRows() {                             // 预测区:行集=观测各级+未来到 98→99 级;配置一律按等级保留
+    var prev = {};                                      // (所有行可编辑:观测段默认继承观测行,改动不会被观测变动冲掉)
+    S.predRows.forEach(function (r) { prev[r.lv | 0] = r; });
+    var out = S.rows.map(function (r) {
+      var p = prev[r.lv | 0] || r;
+      return { skip: p.skip | 0, cls: p.cls, mount: p.mount, bond: p.bond, lv: r.lv | 0 };
+    });
+    var lv = lastObsLv(), last = S.rows[S.rows.length - 1];
+    while (lv < 98 && last) {
+      lv++;
+      var p = prev[lv] || last;
+      out.push({ skip: p.skip | 0, cls: p.cls, mount: p.mount, bond: p.bond, lv: lv });
+    }
+    S.predRows = out;
+  }
+  function preset(list, id) { for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i]; return null; }
+  function mountG(p, bond) { return p && p.levels ? (p.levels[(bond | 0) - 1] || [0, 0, 0, 0, 0, 0, 0, 0, 0]) : [0, 0, 0, 0, 0, 0, 0, 0, 0]; }
+  function rowGrowth(row) {
+    var cp = preset(S.classes, row.cls) || S.classes[0];
+    var mg = mountG(preset(S.mounts, row.mount), row.bond);
+    var m = cp.mountX2 ? 2 : 1;            // 战车系:坐骑成长×2(用户实测规则)
+    var g = [];
+    for (var i = 0; i < 9; i++) g.push((S.personal[i] | 0) + (cp.growths[i] | 0) + (mg[i] | 0) * m);
+    return g;
+  }
+  function rowCaps(row) { return (preset(S.classes, row.cls) || S.classes[0]).caps.map(function (v) { return v | 0; }); }
+  function rowGc(row) { var cp = preset(S.classes, row.cls) || S.classes[0]; return cp.gc > 0 ? cp.gc : (S.gcDefault | 0); }
+  function parseSeed(t) { var v = t.trim() ? Number(t.trim()) : NaN; return isNaN(v) ? null : v >>> 0; }
+
+  // ---------- 左列:角色 ----------
+  function renderChar() {
+    var t = el('charTable');
+    var h = '<tr><th></th>' + DISP.map(function (e) { return '<th>' + STATS[e] + '</th>'; }).join('') + '</tr>';
+    var row = S.rows[0] || newRow();
+    var cp = preset(S.classes, row.cls) || S.classes[0];
+    var mg = mountG(preset(S.mounts, row.mount), row.bond);
+    var x2 = cp.mountX2 ? 2 : 1;
+    function roRow(label, arr) {                     // 只读行
+      return '<tr><td>' + label + '</td>' + DISP.map(function (e) {
+        return '<td>' + arr[e] + '</td>';
+      }).join('') + '</tr>';
+    }
+    h += roRow('角色成长率', S.personal);
+    h += roRow('职业成长率', cp.growths);
+    h += roRow('坐骑成长率' + (x2 === 2 ? '×2' : ''), mg.map(function (v) { return v * x2; }));
+    var fin = rowGrowth(row);
+    h += roRow('最终成长率', fin);                     // 固定合成值,不可改
+    t.innerHTML = h;
+    el('gcDefault').value = S.gcDefault;
+  }
+  // ---------- 左列:人物预设 ----------
+  function renderPersons() {
+    var sel = el('personSel');
+    if (!S.persons || !S.persons.length) {
+      sel.innerHTML = '<option value="">(无预设,手填人物成长)</option>'; return;
+    }
+    sel.innerHTML = S.persons.map(function (p) {
+      var filled = p.growths.some(function (v) { return v; });
+      return '<option value="' + p.id + '">' + p.name + (filled ? '' : '(值待填)') + '</option>';
+    }).join('');
+  }
+  function applyPerson() {
+    var p = preset(S.persons, el('personSel').value);
+    if (!p) return;
+    S.personId = p.id;                                          // 记住选中人物(进页面回显)
+    S.personal = p.growths.slice();                             // 人物成长(锁定)
+    save(); renderChar(); refreshPredictions();
+  }
+  el('personSel').onchange = applyPerson;            // 选中即导入
+
+  // 职业预设:数据锁定,无编辑逻辑(计划表内下拉选择)
+
+  // ---------- 角色面板:职业/坐骑/好感全局选择(=第1行配置,改变应用到全部行) ----------
+  function renderCharSelectors() {
+    var row0 = S.rows[0] || newRow();
+    var cs = el('charClsSel');
+    cs.innerHTML = S.classes.map(function (p) {
+      return '<option value="' + p.id + '"' + (p.id === row0.cls ? ' selected' : '') + '>' + p.name + '</option>';
+    }).join('');
+    var ms = el('charMntSel');
+    ms.innerHTML = '<option value="none"' + (row0.mount === 'none' ? ' selected' : '') + '>步行(无坐骑)</option>' +
+      S.mounts.map(function (p) { return '<option value="' + p.id + '"' + (p.id === row0.mount ? ' selected' : '') + '>' + p.name + '</option>'; }).join('');
+    var bs = el('charBondSel');
+    bs.innerHTML = [1, 2, 3, 4, 5].map(function (b) {
+      return '<option' + (b === (row0.bond | 0) ? ' selected' : '') + '>' + b + '</option>';
+    }).join('');
+  }
+  el('charClsSel').onchange = function () {
+    S.rows.forEach(function (r) { r.cls = el('charClsSel').value; });
+    S.predRows.forEach(function (r) { r.cls = el('charClsSel').value; });   // 预测区同改
+    save(); renderPlan(); renderCharSelectors(); renderChar();
+  };
+  el('charMntSel').onchange = function () {
+    S.rows.forEach(function (r) { r.mount = el('charMntSel').value; });
+    S.predRows.forEach(function (r) { r.mount = el('charMntSel').value; });
+    save(); renderPlan(); renderCharSelectors(); renderChar();
+  };
+  el('charBondSel').onchange = function () {
+    S.rows.forEach(function (r) { r.bond = +(el('charBondSel').value); });
+    S.predRows.forEach(function (r) { r.bond = +(el('charBondSel').value); });
+    save(); renderPlan(); renderCharSelectors(); renderChar();
+  };
+
+  // ---------- 等级计划表 ----------
+  function renderPlan() {
+    syncPredRows();                                    // 观测行任何变动都先同步预测区(镜像观测段+未来段到99级)
+    var t = el('plan');
+    var lv0 = Math.max(1, S.startLv | 0);
+    var h = '<tr><th>等级</th><th>升级前的转职跳过次数</th><th>升级时职业</th><th>升级时坐骑</th><th>坐骑好感</th><th>观测</th><th title="点击 0↔1;右键/Shift=+2(成长≥100 时出现)">加点观测' + HEAD9 + '</th><th></th></tr>';
+    S.rows.forEach(function (r, i) {
+      var obsHtml;
+      if (r.obs) {
+        var cells = '';
+        for (var dj = 0; dj < 9; dj++) {
+          var j = DISP[dj];                                  // 显示位 → 引擎 statId
+          var v = r.obs[j] | 0;
+          cells += '<button class="obBtn' + (v === 1 ? ' on1' : v >= 2 ? ' on2' : '') +
+            '" data-r="' + i + '" data-j="' + j + '">' + v + '</button>';
+        }
+        obsHtml = '<div class="g9">' + cells + '</div>';
+      } else {
+        obsHtml = '<span style="color:var(--dim)">未观测</span>';
+      }
+      h += '<tr data-row="' + i + '">' +
+        '<td style="padding:0;font-size:13px;color:var(--dim)"><input class="no" data-r="' + i + '" data-k="lv" type="number" min="1" value="' + (r.lv | 0) + '">级→' + ((r.lv | 0) + 1) + '级</td>' +
+        '<td style="padding:0"><input class="no" data-r="' + i + '" data-k="skip" value="' + r.skip + '"></td>' +
+        '<td style="padding:0"><select data-r="' + i + '" data-k="cls">' + S.classes.map(function (p) { return '<option value="' + p.id + '"' + (p.id === r.cls ? ' selected' : '') + '>' + p.name + '</option>'; }).join('') + '</select></td>' +
+        '<td style="padding:0"><select data-r="' + i + '" data-k="mount"><option value="none"' + (r.mount === 'none' ? ' selected' : '') + '>步行</option>' + S.mounts.map(function (p) { return '<option value="' + p.id + '"' + (p.id === r.mount ? ' selected' : '') + '>' + p.name + '</option>'; }).join('') + '</select></td>' +
+        '<td style="padding:0"><select data-r="' + i + '" data-k="bond">' + [1, 2, 3, 4, 5].map(function (b) { return '<option' + (b === (r.bond | 0) ? ' selected' : '') + '>' + b + '</option>'; }).join('') + '</select></td>' +
+        '<td style="padding:0"><button class="btn sec mini obRowBtn' + (r.obs ? ' active' : '') + '" data-obrow="' + i + '">' + (r.obs ? '✓观测' : '观测') + '</button></td>' +
+        '<td style="padding:0" colspan="1">' + obsHtml + '</td>' +
+        '<td><button class="btn sec mini" data-del="' + i + '">✕</button></td></tr>';
+    });
+    t.innerHTML = h;
+    el('startLv').value = lv0;
+
+    t.querySelectorAll('[data-k]').forEach(function (inp) {
+      inp.onchange = function () {
+        var i = +inp.dataset.r, k = inp.dataset.k;
+        if (k === 'skip') { S.rows[i].skip = Math.max(0, inp.value | 0); }
+        else if (k === 'lv') {                            // 等级:改此行,后续行顺延 +1(转职等级重置时只改一行)
+          var v0 = Math.max(1, inp.value | 0);
+          for (var y = i; y < S.rows.length; y++) S.rows[y].lv = v0 + (y - i);
+          syncPredRows();
+        }
+        else {                                            // 职业/坐骑/好感:向后传播(好感存数字,否则回显比较失效)
+          var v = (k === 'bond') ? +inp.value : inp.value;
+          for (var x = i; x < S.rows.length; x++) S.rows[x][k] = v;
+        }
+        save(); renderPlan(); renderCharSelectors(); renderChar(); refreshPredictions();
+      };
+    });
+    t.querySelectorAll('[data-obrow]').forEach(function (b) {
+      b.onclick = function () {
+        var r = S.rows[+b.dataset.obrow];
+        r.obs = r.obs ? null : [0, 0, 0, 0, 0, 0, 0, 0, 0];   // 开=全0,点击格子变1
+        save(); renderPlan();
+      };
+    });
+    t.querySelectorAll('.obBtn').forEach(function (b) {
+      function setVal(v) {
+        var r = S.rows[+b.dataset.r];
+        r.obs[+b.dataset.j] = v;
+        b.textContent = v;
+        b.className = 'obBtn' + (v === 1 ? ' on1' : v >= 2 ? ' on2' : '');
+        save(); refreshPredictions();
+      }
+      b.onclick = function (ev) {                           // 左键 0↔1;Shift+左键=2
+        var cur = S.rows[+b.dataset.r].obs[+b.dataset.j] | 0;
+        setVal(ev.shiftKey ? (cur === 2 ? 0 : 2) : (cur === 1 ? 0 : 1));
+      };
+      b.oncontextmenu = function (ev) {                     // 右键 0↔2
+        ev.preventDefault();
+        var cur = S.rows[+b.dataset.r].obs[+b.dataset.j] | 0;
+        setVal(cur === 2 ? 0 : 2);
+      };
+    });
+    t.querySelectorAll('[data-del]').forEach(function (b) {
+      b.onclick = function () {
+        S.rows.splice(+b.dataset.del, 1);
+        if (!S.rows.length) S.rows = [newRow()];        // 至少留一行
+        syncPredRows(); save(); renderCharSelectors(); renderChar(); renderPlan();
+      };
+    });
+    refreshPredictions();
+  }
+  el('addRows').onclick = function () {
+    var last = S.rows[S.rows.length - 1] || newRow();
+    var lv = last.lv | 0;
+    for (var i = 0, n = Math.max(1, el('addN').value | 0); i < n; i++)
+      S.rows.push({ skip: 0, cls: last.cls, mount: last.mount, bond: last.bond, lv: ++lv, obs: [0, 0, 0, 0, 0, 0, 0, 0, 0] });   // 等级接续末行
+    syncPredRows(); save(); renderPlan();
+  };
+  el('clearObs').onclick = function () {                // 删掉所有观测行(未观测的保留)
+    S.rows = S.rows.filter(function (r) { return !r.obs; });
+    if (!S.rows.length) S.rows = [newRow()];            // 删空则至少留一行
+    syncPredRows(); save(); renderCharSelectors(); renderChar(); renderPlan();
+  };
+  el('startLv').onchange = function () {                // 起始等级:全表按顺序重排(会覆盖单行改的等级)
+    S.startLv = Math.max(1, el('startLv').value | 0);
+    S.rows.forEach(function (r, i) { r.lv = S.startLv + i; });
+    syncPredRows(); save(); renderPlan();
+  };
+
+  // ---------- 组装扫描输入(资格由 worker 按 cur 现算,这里只给合成参数) ----------
+  function buildInputs() {
+    return S.rows.map(function (r) {
+      return { g9: rowGrowth(r), gc: rowGc(r), cap9: rowCaps(r), skip: r.skip | 0 };
+    });
+  }
+  function observedList() {
+    return S.rows.map(function (r) {
+      if (!r.obs) return null;                              // 未观测行
+      return r.obs.map(function (v) { return v == null ? 0 : v; });   // 兼容旧存档的空槽
+    });
+  }
+
+  // ---------- 扫描(多线程三层:http(s) 直连 Worker / file:// Blob Worker / 主线程分片) ----------
+  var workers = [], scanning = false, mainChunkTimer = null;
+  function makeWorker() {
+    try { return new Worker('worker.js'); }               // ① http(s):任何浏览器/手机
+    catch (e) {
+      if (window.__WORKER_SRC)                            // ② file:// 直开(桌面/安卓 Chrome 等 origin:null)
+        return new Worker(URL.createObjectURL(new Blob([window.__WORKER_SRC], { type: 'text/javascript' })));
+      throw e;                                            // ③ 交给外层回退主线程
+    }
+  }
+  function setProgress(done, total, extra) {
+    el('progressBox').style.display = total ? 'block' : 'none';
+    el('progFill').style.width = (100 * done / total).toFixed(1) + '%';
+    el('progText').textContent = extra + ' ' + (100 * done / total).toFixed(1) + '%(候选 ' + doneMatches + ')';
+  }
+  var doneMatches = 0, overflowed = false;
+  function finishScan(all, truncated, earlyStop) {
+    scanning = false;
+    el('cancelBtn').style.display = 'none'; el('scanBtn').disabled = false;
+    el('progressBox').style.display = 'none';
+    S.candidates = all;
+    var w = el('warnBox');
+    if (truncated || overflowed) {
+      w.style.display = 'block';
+      w.textContent = '⚠ 候选超过上限 20 万,结果不完整 —— 请补录更多观测再过滤(通常 3-4 级观测即可收窄到千级)。';
+    } else if (earlyStop) {
+      w.style.display = 'block';
+      w.textContent = '观测 ≥5 条,命中 1 个候选即停(未扫完全域);如需复核可点"用当前观测在候选内收窄"。';
+    } else w.style.display = 'none';
+    renderCandidates();
+  }
+  el('scanBtn').onclick = function () {
+    if (scanning) return;
+    var obs = observedList(), nObs = obs.filter(Boolean).length;
+    if (!nObs) return alert('请先在计划表填至少一行观测(哪几项加了点)');
+    if (nObs === 1) {
+      var w = el('warnBox'); w.style.display = 'block';
+      w.textContent = '⚠ 仅 1 级观测:预期候选可达数百万,扫描耗时且大概率溢出。建议录 2-3 级连续观测。';
+    }
+    var levels = buildInputs();
+    var RANGE = el('full32').checked ? 0xFFFFFFFF : 0x7FFFFFFF;
+    scanning = true; doneMatches = 0; overflowed = false;
+    el('scanBtn').disabled = true; el('cancelBtn').style.display = 'inline-block';
+    var msg = { cmd: 'scan', levels: levels, observed: obs, cur0: ZERO9.slice(), cap: 200000,
+      stopOnFirst: nObs >= 5,                            // 观测 ≥5:命中 1 个候选即停(用户规则)
+      wasm: ENGINE_WASM ? ENGINE_WASM.slice(0) : null }; // 已导入通用引擎则走 WASM
+    var all = [], truncated = false, nw = 0;
+    try {
+      var NW = Math.min(navigator.hardwareConcurrency || 4, 8), per = Math.floor(RANGE / NW);
+      for (var i = 0; i < NW; i++) {
+        var wk = makeWorker();
+        workers.push(wk);
+        wk.onmessage = (function (wk, i2) { return function (e) {
+          if (!scanning) return;                         // 早停/取消后到达的迟到消息
+          var m = e.data;
+          if (m.type === 'progress') { wk._done = m.done; wk._m = m.matches; aggregate(); }
+          else if (m.type === 'overflow') { overflowed = true; }
+          else if (m.type === 'done') {
+            wk._done = m.done; wk._m = m.matches;
+            if (m.truncated) truncated = true;
+            var arr = m.seeds || [];                     // Uint32Array 视图(长度=命中数)
+            for (var q = 0; q < arr.length; q++) all.push(arr[q]);   // 逐个 push,勿用 apply(大数组炸栈)
+            wk.terminate(); nw--;
+            if (msg.stopOnFirst && m.matches >= 1) {     // 首中即停:杀掉其余线程直接出结果
+              workers.forEach(function (w2) { w2.terminate(); });
+              finishScan(all, truncated, true);
+            } else if (nw === 0) finishScan(all, truncated);
+          }
+        }; })(wk, i);
+        // Worker 崩溃兜底:按已报进度结算并结束,绝不能让扫描永久卡住
+        wk.onerror = wk.onmessageerror = (function (wk, i2) { return function (e) {
+          if (!scanning || wk._fin) return;
+          wk._fin = true;
+          wk.terminate(); nw--;
+          var w = el('warnBox'); w.style.display = 'block';
+          w.textContent = '⚠ 线程 ' + (i2 + 1) + ' 中途崩溃(' + ((e && e.message) || 'worker error') +
+            '),其未扫完的区间未覆盖;建议直接重扫。';
+          if (nw === 0) finishScan(all, truncated);
+        }; })(wk, i);
+        wk.postMessage(Object.assign({}, msg, { from: i * per, to: i === NW - 1 ? RANGE : (i + 1) * per - 1 }));
+        nw++;
+      }
+      function aggregate() {
+        var d = 0, mm = 0;
+        workers.forEach(function (x) { d += x._done || 0; mm += x._m || 0; });
+        doneMatches = mm; setProgress(d, RANGE + 1, '扫描中(' + NW + ' 线程 ' + (msg.wasm ? 'WASM 引擎' : 'JS') + '):');
+      }
+    } catch (err) {                                     // Worker 完全不可用的环境
+      workers = [];
+      mainChunkScan(msg, RANGE, function (all2, tr2, e2) { finishScan(all2, tr2, e2); });
+    }
+  };
+  function mainChunkScan(msg, RANGE, cb) {               // 主线程回退:50ms 时间片
+    var all = [], truncated = false, s = 0, CHUNK = 200000, stopped = false;
+    var gains9 = new Int32Array(9), cur = new Int32Array(9);
+    mainChunkTimer = function () { stopped = true; };    // 取消:置停(循环自续,必须用标志打断)
+    function step() {
+      if (stopped) return;
+      var tEnd = Date.now() + 50;
+      while (s <= RANGE && Date.now() < tEnd) {
+        var end = Math.min(s + CHUNK, RANGE + 1);
+        for (; s < end; s++) {
+          if (M.matchSeed(s, msg.levels, msg.observed, msg.cur0, gains9, cur)) {
+            if (all.length < 200000) all.push(s); else { truncated = true; break; }
+            if (msg.stopOnFirst && all.length >= 1) { cb(all, truncated, true); return; }   // 观测≥5 首中即停
+          }
+        }
+      }
+      doneMatches = all.length; setProgress(s, RANGE + 1, '主线程扫描(无 Worker):');
+      if (s > RANGE || truncated) cb(all, truncated);
+      else setTimeout(step, 0);
+    }
+    setTimeout(step, 0);
+  }
+  el('cancelBtn').onclick = function () {
+    workers.forEach(function (w) { w.terminate(); }); workers = [];
+    if (mainChunkTimer) mainChunkTimer();               // 调用置停闭包(打断自续循环)
+    finishScan(S.candidates || [], false);
+  };
+  el('refilterBtn').onclick = function () {              // 候选内本地收窄
+    if (!S.candidates || !S.candidates.length) return alert('没有候选;先全扫描');
+    var levels = buildInputs(), obs = observedList(), cur0 = ZERO9.slice();
+    var gains9 = new Int32Array(9), cur = new Int32Array(9);
+    S.candidates = S.candidates.filter(function (s) { return M.matchSeed(s, levels, obs, cur0, gains9, cur); });
+    renderCandidates();
+  };
+
+  // ---------- 候选与预测(预测区覆盖观测段镜像+未来段,种子链整条走预测行) ----------
+  function predictChain(seed) {                          // 单种子从观测最低等级一路走到 99 级
+    var cur = ZERO9.slice(), out = [];
+    S.predRows.forEach(function (r) {
+      for (var k = 0; k < (r.skip | 0); k++) seed = C.advanceSeed(seed);
+      var res = C.levelup(seed, rowGrowth(r), cur, rowCaps(r), rowGc(r));
+      out.push({ seedBefore: seed, gains: res.gains, applied: res.applied, draws: res.draws });
+      cur = cur.map(function (v, j) { return v + res.applied[j]; });
+      seed = res.nextSeed;
+    });
+    return out;
+  }
+  var selectedCand = null;
+  function renderCandidates() {
+    var cs = S.candidates, sum = el('candSummary'), pickRow = el('candPickRow');
+    if (cs === null) { sum.textContent = '未过滤。'; pickRow.style.display = 'none'; refreshPredictions(); return; }
+    sum.textContent = '候选种子:' + cs.length + ' 个' + (cs.length ? '(选中后下方预测区显示其预测;再录观测可收窄)' : '(无匹配 —— 检查成长率/观测/gc)');
+    if (!cs.length) { pickRow.style.display = 'none'; refreshPredictions(); return; }
+    pickRow.style.display = 'flex';
+    var sel = el('candPick');
+    sel.innerHTML = cs.slice(0, 500).map(function (s) { return '<option value="' + s + '">' + s + ' (0x' + (s >>> 0).toString(16).toUpperCase() + ')</option>'; }).join('');
+    selectedCand = cs[0];                                 // 唯一候选默认选中
+    refreshPredictions();
+  }
+  el('candPick').onchange = function () { selectedCand = +el('candPick').value; refreshPredictions(); };
+
+  function consensusNote(cs) {
+    if (cs.length <= 1) return cs.length === 1 ? '唯一候选 ✓ 预测确定' : '';
+    var top = cs.slice(0, 1000);                        // 预测链到 99 级较长,共识取前 1000 个候选
+    var patterns = {};
+    top.forEach(function (s) {
+      var key = predictChain(s).map(function (r2) { return r2.gains.join(','); }).join(';');
+      patterns[key] = (patterns[key] || 0) + 1;
+    });
+    var keys = Object.keys(patterns);
+    if (keys.length === 1) return '前 ' + top.length + ' 候选预测完全一致';
+    return '前 ' + top.length + ' 候选有 ' + keys.length + ' 种未来,选中查看个别';
+  }
+
+  function currentSeed() {
+    if (selectedCand !== null && S.candidates && S.candidates.length) return selectedCand;
+    if (el('knownSeed').value.trim()) { var k = parseSeed(el('knownSeed').value); if (k !== null) return k; }
+    return null;
+  }
+  function refreshPredictions() {                        // 渲染独立预测区(观测表不再显示预测/种子)
+    var seed = currentSeed(), t = el('predTable'), hint = el('predHint');
+    var note = el('consensusNote');
+    if (S.candidates && S.candidates.length) note.textContent = consensusNote(S.candidates);
+    if (seed === null) {
+      t.innerHTML = '';
+      hint.style.display = 'inline';
+      hint.textContent = '先在上方"种子过滤"选候选(唯一候选自动选中),或用"高级"里已知种子';
+      return;
+    }
+    hint.style.display = 'none';
+    if (!S.predRows.length) {                           // 理论不会发生(syncPredRows 保证),防御
+      t.innerHTML = '';
+      hint.style.display = 'inline';
+      hint.textContent = '预测行为空,改动观测行后自动生成';
+      return;
+    }
+    var chain = predictChain(seed), h = '<tr><th>等级</th><th>升级前的转职跳过次数</th><th>升级时职业</th><th>升级时坐骑</th><th>坐骑好感</th><th>预测加点' + HEAD9 + '</th><th>升级所用种子</th></tr>';
+    S.predRows.forEach(function (r, i) {                // 所有行可编辑(观测段默认继承观测行,可自由改做推演)
+      var o = chain[i];
+      var cells = DISP.map(function (e) { var v = o.gains[e]; return '<b' + (v ? '' : ' class="z"') + '>' + v + '</b>'; }).join('');
+      h += '<tr>' +
+        '<td style="padding:0;font-size:13px;white-space:nowrap;color:var(--dim)"><input class="no" data-r="' + i + '" data-k="lv" type="number" min="1" value="' + (r.lv | 0) + '">级→' + ((r.lv | 0) + 1) + '级</td>' +
+        '<td style="padding:0"><input class="no" data-r="' + i + '" data-k="skip" value="' + r.skip + '"></td>' +
+        '<td style="padding:0"><select data-r="' + i + '" data-k="cls">' + S.classes.map(function (p) { return '<option value="' + p.id + '"' + (p.id === r.cls ? ' selected' : '') + '>' + p.name + '</option>'; }).join('') + '</select></td>' +
+        '<td style="padding:0"><select data-r="' + i + '" data-k="mount"><option value="none"' + (r.mount === 'none' ? ' selected' : '') + '>步行</option>' + S.mounts.map(function (p) { return '<option value="' + p.id + '"' + (p.id === r.mount ? ' selected' : '') + '>' + p.name + '</option>'; }).join('') + '</select></td>' +
+        '<td style="padding:0"><select data-r="' + i + '" data-k="bond">' + [1, 2, 3, 4, 5].map(function (b) { return '<option' + (b === (r.bond | 0) ? ' selected' : '') + '>' + b + '</option>'; }).join('') + '</select></td>' +
+        '<td><div class="g9">' + cells + '</div></td>' +
+        '<td class="u"><span style="font-size:12px">' + o.seedBefore + '</span></td></tr>';
+    });
+    t.innerHTML = h;
+    t.querySelectorAll('[data-k]').forEach(function (inp) {   // 未来段:与观测表同语义,改后向后传播(仅预测区内)
+      inp.onchange = function () {
+        var i = +inp.dataset.r, k = inp.dataset.k;
+        if (k === 'skip') { S.predRows[i].skip = Math.max(0, inp.value | 0); }
+        else if (k === 'lv') {
+          var v0 = Math.max(1, inp.value | 0);
+          for (var y = i; y < S.predRows.length; y++) S.predRows[y].lv = v0 + (y - i);
+        }
+        else {
+          var v = (k === 'bond') ? +inp.value : inp.value;
+          for (var x = i; x < S.predRows.length; x++) S.predRows[x][k] = v;
+        }
+        save(); refreshPredictions();
+      };
+    });
+  }
+  el('knownRun').onclick = function () {
+    var k = parseSeed(el('knownSeed').value);
+    if (k === null) return alert('种子格式:十进制或 0x 十六进制');
+    selectedCand = null; refreshPredictions();
+  };
+  el('gcDefault').onchange = function () { S.gcDefault = el('gcDefault').value | 0; save(); refreshPredictions(); };
+
+  // ---------- 重置:清空本次预测的全部设置/结果,准备下次(仅保留 WASM 引擎,其存独立键) ----------
+  el('resetBtn').onclick = function () {
+    if (typeof confirm === 'function' && !confirm('重置人物/观测/候选/预测等全部设置?(已启用的引擎保留)')) return;
+    S = defaults();
+    S.bond5mig = S.predMig = true;                      // 全新状态,无需再迁移
+    if (!S.rows.length) S.rows = [newRow()];
+    syncPredRows();
+    selectedCand = null;
+    el('knownSeed').value = '';
+    save();
+    renderPersons(); initPerson();                      // 人物回第一个并载入
+    renderCharSelectors(); renderChar(); renderPlan(); renderCandidates();
+  };
+
+  // ---------- 高级:通用高速引擎(.wasm 文件;所有平台/浏览器一致,含手机/iPhone)----------
+  var ENGINE_KEY = 'few_wasm_engine', ENGINE_WASM = null;   // ArrayBuffer 或 null
+  function b64decode(s) {                                // 手写 base64,跨环境(含 file:// 与受限环境)
+    var A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/', m = {}, i;
+    for (i = 0; i < 64; i++) m[A.charAt(i)] = i;
+    var c = s.replace(/[^A-Za-z0-9+/]/g, ''), bytes = [];
+    for (i = 0; i < c.length; i += 4) {
+      var a = m[c.charAt(i)] || 0, b = m[c.charAt(i + 1)] || 0, d = m[c.charAt(i + 2)] || 0, e = m[c.charAt(i + 3)] || 0;
+      bytes.push((a << 2) | (b >> 4));
+      if (i + 2 < c.length) bytes.push(((b & 15) << 4) | (d >> 2));
+      if (i + 3 < c.length) bytes.push(((d & 3) << 6) | e);
+    }
+    return new Uint8Array(bytes).buffer;
+  }
+  function b64encode(buf) {
+    var A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/', b = new Uint8Array(buf), s = '';
+    for (var i = 0; i < b.length; i += 3)
+      s += A.charAt(b[i] >> 2) + A.charAt(((b[i] & 3) << 4) | ((b[i + 1] || 0) >> 4)) +
+        A.charAt((((b[i + 1] || 0) & 15) << 2) | ((b[i + 2] || 0) >> 6)) +
+        (i + 2 < b.length ? A.charAt((b[i + 2] || 0) & 63) : '=');
+    return s;
+  }
+  (function () {                                         // 启动即恢复已导入的引擎(长期记忆)
+    try { var e64 = localStorage.getItem(ENGINE_KEY); if (e64) ENGINE_WASM = b64decode(e64); } catch (e) { }
+  })();
+  function refreshEngineUI() {
+    el('engineStat').textContent = ENGINE_WASM ? '已启用(扫描自动走 WASM 高速引擎)' : '未启用(浏览器 JS 计算)';
+    el('engineOff').style.display = ENGINE_WASM ? 'inline-block' : 'none';
+  }
+  el('engineBtn').onclick = function () { el('engineFile').click(); };
+  el('engineFile').onchange = function (f) {             // 文件管理器选 few_engine.wasm → 校验魔数 → 入库
+    var file = f.target.files[0]; if (!file) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+      var b = new Uint8Array(rd.result);
+      if (!(b[0] === 0 && b[1] === 97 && b[2] === 115 && b[3] === 109)) return alert('不是 .wasm 引擎文件');
+      ENGINE_WASM = b.buffer;
+      try { localStorage.setItem(ENGINE_KEY, b64encode(b.buffer)); } catch (e) { }   // 存不下则仅本次会话有效
+      refreshEngineUI();
+    };
+    rd.readAsArrayBuffer(file);
+  };
+  el('engineOff').onclick = function () {
+    ENGINE_WASM = null;
+    try { localStorage.removeItem(ENGINE_KEY); } catch (e) { }
+    refreshEngineUI();
+  };
+
+  el('predExport').onclick = function () {               // 预测表导出(JSON:计划+当时整表记录,gains 为显示序)
+    var seed = currentSeed();
+    var chain = seed !== null ? predictChain(seed) : null;
+    var person = preset(S.persons, S.personId);
+    var data = {
+      app: 'few_sim_pred', v: 1, exportedAt: new Date().toISOString(),
+      person: person ? { id: person.id, name: person.name } : null,
+      seedUsed: seed, startLv: S.startLv,
+      predRows: S.predRows.map(function (r) {
+        return { lv: r.lv | 0, skip: r.skip | 0, cls: r.cls, mount: r.mount, bond: r.bond | 0 };
+      }),
+      table: chain ? chain.map(function (o, i) {
+        return { lv: S.predRows[i].lv | 0, seed: o.seedBefore, gains: DISP.map(function (e) { return o.gains[e]; }) };
+      }) : []
+    };
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+    a.download = 'few_pred_' + (person ? person.name : 'plan') + '.json'; a.click();
+  };
+  el('predImport').onclick = function () { el('predFile').click(); };
+  el('predFile').onchange = function (f) {
+    var file = f.target.files[0]; if (!file) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+      try {
+        var d = JSON.parse(rd.result);
+        if (d.app !== 'few_sim_pred') return alert('不是本页导出的预测表 JSON');
+        if (d.seedUsed != null) { el('knownSeed').value = String(d.seedUsed); selectedCand = null; }
+        if (d.startLv > 0) S.startLv = d.startLv | 0;
+        if (d.person && preset(S.persons, d.person.id)) {
+          S.personId = d.person.id;
+          renderPersons(); el('personSel').value = S.personId; applyPerson();
+        }
+        if (Array.isArray(d.predRows) && d.predRows.length) {
+          S.predRows = d.predRows.map(function (r) {
+            return { lv: r.lv | 0, skip: r.skip | 0, cls: r.cls, mount: r.mount, bond: r.bond | 0 };
+          });
+        }
+        save(); renderPlan(); renderCandidates();
+      } catch (e) { alert('JSON 解析失败'); }
+    };
+    rd.readAsText(file);
+  };
+
+  // ---------- 启动 ----------
+  function initPerson() {          // 进页面即载入人物(修复:原先要切换一次人物才加载)
+    if (!S.persons || !S.persons.length) return;         // 无预设,手填
+    var pid = (S.personId && preset(S.persons, S.personId)) ? S.personId : '';
+    if (!pid && hadSave) {                               // 旧存档没有 personId:按人物成长率指纹找回
+      var hit = S.persons.filter(function (p) { return p.growths && p.growths.join() === S.personal.join(); });
+      pid = hit.length ? hit[0].id : '';
+    }
+    if (!pid) pid = S.persons[0].id;
+    el('personSel').value = pid;
+    S.personId = pid;
+    // 存档恢复时表内已是该人物最新数据(含未"存入人物"的当前值/修正),不重新覆盖;仅全新/对不上时载入
+    if (!hadSave || S.personal.join() !== preset(S.persons, pid).growths.join()) applyPerson();
+    save();
+  }
+  function runBadge() {
+    var r = window.FESelftest.run(C), b = el('badge');
+    if (r.pass === r.total) { b.textContent = '自检 ' + r.pass + '/' + r.total + ' ✓'; b.className = 'ok'; return true; }
+    b.textContent = '自检失败 ✗'; b.className = 'bad';
+    ['scanBtn', 'refilterBtn', 'knownRun'].forEach(function (id) { el(id).disabled = true; });
+    return false;
+  }
+  if (runBadge()) {
+    refreshEngineUI();
+    renderPersons(); initPerson();
+    renderCharSelectors(); renderChar(); renderPlan(); renderCandidates();
+  }
+})();
+
+</script>
+</body>
+</html>
